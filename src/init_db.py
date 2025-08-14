@@ -1,15 +1,3 @@
-"""
-High School Management System API
-
-A super simple FastAPI application that allows students to view and sign up
-for extracurricular activities at Mergington High School.
-"""
-
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
-import os
-from pathlib import Path
 from pymongo import MongoClient
 
 # Connect to MongoDB
@@ -17,15 +5,7 @@ client = MongoClient('mongodb://localhost:27017/')
 db = client['mergington_high']
 activities_collection = db['activities']
 
-app = FastAPI(title="Mergington High School API",
-              description="API for viewing and signing up for extracurricular activities")
-
-# Mount the static files directory
-current_dir = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
-          "static")), name="static")
-
-# In-memory activity database
+# Initial activities data
 activities = {
     "Chess Club": {
         "description": "Learn strategies and compete in chess tournaments",
@@ -45,7 +25,6 @@ activities = {
         "max_participants": 30,
         "participants": ["john@mergington.edu", "olivia@mergington.edu"]
     },
-    # Sports related activities
     "Soccer Team": {
         "description": "Join the school soccer team and compete in matches",
         "schedule": "Wednesdays, 4:00 PM - 5:30 PM",
@@ -58,7 +37,6 @@ activities = {
         "max_participants": 15,
         "participants": ["mia@mergington.edu", "noah@mergington.edu"]
     },
-    # Artistic activities
     "Art Workshop": {
         "description": "Explore painting, drawing, and sculpture techniques",
         "schedule": "Thursdays, 4:00 PM - 5:30 PM",
@@ -71,7 +49,6 @@ activities = {
         "max_participants": 20,
         "participants": ["ella@mergington.edu", "jack@mergington.edu"]
     },
-    # Intellectual activities
     "Math Olympiad": {
         "description": "Prepare for math competitions and solve challenging problems",
         "schedule": "Tuesdays, 4:00 PM - 5:00 PM",
@@ -86,40 +63,16 @@ activities = {
     }
 }
 
-
-@app.get("/")
-def root():
-    return RedirectResponse(url="/static/index.html")
-
-
-@app.get("/activities")
-def get_activities():
-    activities_dict = {}
-    for activity in activities_collection.find():
-        activity_name = activity['name']
-        del activity['_id']  # Remove MongoDB's internal ID
-        del activity['name']  # Remove redundant name field
-        activities_dict[activity_name] = activity
-    return activities_dict
-
-
-@app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
-    """Sign up a student for an activity"""
-    # Get the activity from MongoDB
-    activity = activities_collection.find_one({"name": activity_name})
+def init_db():
+    # Drop existing collection to start fresh
+    activities_collection.drop()
     
-    # Validate activity exists
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
+    # Insert activities with their names as part of the document
+    for activity_name, activity_data in activities.items():
+        activity_data['name'] = activity_name
+        activities_collection.insert_one(activity_data)
 
-    # Validate student is not already signed up
-    if email in activity["participants"]:
-        raise HTTPException(status_code=400, detail="Student already signed up")
+    print("Database initialized with activities!")
 
-    # Add student
-    activities_collection.update_one(
-        {"name": activity_name},
-        {"$push": {"participants": email}}
-    )
-    return {"message": f"Signed up {email} for {activity_name}"}
+if __name__ == "__main__":
+    init_db()
